@@ -13,6 +13,33 @@ LOGGER = logging.getLogger(__name__)
 LOGGER.addHandler(logging.StreamHandler())
 LOGGER.setLevel(logging.INFO)
 
+class AutoOpenWritableFile(object):
+    """Instances of these are placeholders for files which
+    may or may not be written to in the future. 
+
+    Specifically to protect the current contents of files the
+    call to open() is delayed until the first call to write(),
+    or fobj()
+
+    Implements write() """
+    def __init__(self, fname):
+        """:param str fname: The filename which may be opened
+        """
+        self.fname  = fname
+        self._fobj = None
+
+    @property
+    def fobj(self,):
+        """Opens the file if not open, and returns the backing file object,
+        creating it if necessary
+        """
+        if not self._fobj:
+            self._fobj = open(self.fname,"w")
+        return self._fobj
+
+    def write(self,data):
+        self.fobj.write(data)
+
 def get_crt(account_key, csr, acme_dir, log=LOGGER, CA=DEFAULT_CA, disable_check=False, directory_url=DEFAULT_DIRECTORY_URL, contact=None):
     directory, acct_headers, alg, jwk = None, None, None, None # global variables
 
@@ -187,11 +214,12 @@ def main(argv=None):
     parser.add_argument("--directory-url", default=DEFAULT_DIRECTORY_URL, help="certificate authority directory url, default is Let's Encrypt")
     parser.add_argument("--ca", default=DEFAULT_CA, help="DEPRECATED! USE --directory-url INSTEAD!")
     parser.add_argument("--contact", metavar="CONTACT", default=None, nargs="*", help="Contact details (e.g. mailto:aaa@bbb.com) for your account-key")
+    parser.add_argument("--output", metavar="FILENAME", default=sys.stdout, nargs="?", type=AutoOpenWritableFile, help="Filename to save certificate to")
 
     args = parser.parse_args(argv)
     LOGGER.setLevel(args.quiet or LOGGER.level)
     signed_crt = get_crt(args.account_key, args.csr, args.acme_dir, log=LOGGER, CA=args.ca, disable_check=args.disable_check, directory_url=args.directory_url, contact=args.contact)
-    sys.stdout.write(signed_crt)
+    args.output.write(signed_crt)
 
 if __name__ == "__main__": # pragma: no cover
     main(sys.argv[1:])
